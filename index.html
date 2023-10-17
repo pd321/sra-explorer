@@ -303,7 +303,7 @@
                             <button class="btn btn-sm btn-default btn-download" ng-click="download_contents('#fastqURLs_aspera_content', 'sra_explorer_fastq_aspera_download.sh')"><span class="glyphicon glyphicon-download-alt"></span> Download</button>
                           </p>
                           <p ng-show="savedResultsENAaccessions.length < savedResults.length" class="text-center"><span class="glyphicon glyphicon-refresh fa-spin"></span> Loading <span class="badge"><span ng-bind="savedResultsENAaccessions.length"></span> / <span ng-bind="savedResults.length"></span></span>..</p>
-                          <pre ng-show="savedResultsENAfastq.length > 0" id="fastqURLs_aspera_content"><code>#!/usr/bin/env bash</code><code ng-repeat="x in savedResultsENAfastq">{{ nlChr }}ascp -QT -l 300m -P33001 -i {{ ascp_openssh_location }} {{ x.fastq_asperaurl }} .<span ng-show="ascp_append_mv"> && mv {{ x.fastq_filename }} {{ x.fastq_niceFilename }}</span></code></pre>
+                          <pre ng-show="savedResultsENAfastq.length > 0" id="fastqURLs_aspera_content"><code>#!/usr/bin/env bash</code><br><code>flag=0</code><code ng-repeat="x in savedResultsENAfastq">{{ nlChr }}test ! -e {{ x.fastq_niceFilename }}.done && { ascp -QT -l 300m -P33001 -i {{ ascp_openssh_location }} {{ x.fastq_asperaurl }} . && md5sum -c <(printf "{{ x.fastq_md5 }}  {{ x.fastq_filename }}\n") && mv {{ x.fastq_filename }} {{ x.fastq_niceFilename }} && touch {{ x.fastq_niceFilename }}.done || flag=1; }</code><br><code>exit $flag</code></pre>
                         </div>
                       </div>
                     </div>
@@ -668,13 +668,14 @@
               if($scope.savedResultsENAaccessions.length < $scope.savedResults.length){
                 angular.forEach($scope.savedResults, function(value, key) {
                   if($scope.savedResultsENAaccessions.indexOf(value['accession']) === -1){
-                    var ENAsearchURL = 'https://www.ebi.ac.uk/ena/portal/api/filereport?result=read_run&fields=fastq_ftp&format=JSON&accession='+value['accession'];
+                    var ENAsearchURL = 'https://www.ebi.ac.uk/ena/portal/api/filereport?result=read_run&format=JSON&accession='+value['accession'];
                     $http.get(ENAsearchURL).success(function(s_response) {
                       for (var i = 0; i < s_response.length; i++) {
                         var ftpFastQ = s_response[i]["fastq_ftp"];
                         if (ftpFastQ != undefined) {
                           // Paired-end FastQ files are given as a single result, need to split by ; character
                           var ftpFastQ_urls = ftpFastQ.split(';');
+						  var fastQ_md5 = s_response[i]["fastq_md5"].split(';');
                           for(var j = 0; j < ftpFastQ_urls.length; j++){
                             // Save the accession now that we have some download filenames, so we know that this worked
                             if($scope.savedResultsENAaccessions.indexOf(value['accession']) === -1){
@@ -696,7 +697,8 @@
                               'fastq_url': 'ftp://'+ftpFastQ_urls[j],
                               'fastq_asperaurl': ftpFastQ_urls[j].replace('ftp.sra.ebi.ac.uk/', 'era-fasp@fasp.sra.ebi.ac.uk:').replace('ftp.ebi.ac.uk/', 'era-fasp@fasp.ebi.ac.uk:'),
                               'fastq_filename': fname,
-                              'fastq_niceFilename': value['accession']+'_'+value['cleanTitle']+fname.replace(value['accession'], '')
+                              'fastq_niceFilename': value['accession']+'_'+value['cleanTitle']+fname.replace(value['accession'], ''),
+							  'fastq_md5': fastQ_md5[j]
                             });
                             $scope.savedResultsENAfastqYAML = jsyaml.safeDump($scope.savedResultsENAfastq);
                           }
